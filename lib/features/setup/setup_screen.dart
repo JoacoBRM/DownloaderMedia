@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/l10n/app_localizations.dart';
+import '../../data/services/binary_manager.dart';
 import '../downloads/providers/download_provider.dart';
 
 class SetupScreen extends ConsumerStatefulWidget {
@@ -34,6 +35,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final status = ref.watch(binaryStatusProvider);
+    final overallProgress = status.overallProgress;
 
     return Scaffold(
       backgroundColor: AppColors.bgDark,
@@ -88,6 +90,33 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                         l10n.get('setupDesc'),
                         style: Theme.of(context).textTheme.bodyMedium,
                         textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(5),
+                              child: LinearProgressIndicator(
+                                value: overallProgress,
+                                minHeight: 8,
+                                backgroundColor: AppColors.bgDark,
+                                valueColor: const AlwaysStoppedAnimation(
+                                  AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            '${(overallProgress * 100).toStringAsFixed(0)}%',
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 32),
 
@@ -182,7 +211,7 @@ class _SetupItem extends StatelessWidget {
   final String label;
   final String description;
   final double progress;
-  final dynamic status;
+  final BinaryStatus status;
 
   const _SetupItem({
     required this.label,
@@ -193,8 +222,9 @@ class _SetupItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isReady = status.toString().contains('ready');
-    final isDownloading = status.toString().contains('downloading');
+    final isReady = status == BinaryStatus.ready;
+    final isDownloading = status == BinaryStatus.downloading;
+    final isError = status == BinaryStatus.error;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -231,6 +261,12 @@ class _SetupItem extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                   ),
+                ),
+              if (isError)
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: AppColors.error,
+                  size: 18,
                 ),
             ],
           ),

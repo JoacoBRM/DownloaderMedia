@@ -25,19 +25,34 @@ class BinaryProgress {
   bool get allReady =>
       ytDlpStatus == BinaryStatus.ready && ffmpegStatus == BinaryStatus.ready;
 
+  double get overallProgress {
+    double valueFor(BinaryStatus status, double progress) {
+      return switch (status) {
+        BinaryStatus.ready => 1.0,
+        BinaryStatus.downloading => progress.clamp(0.0, 1.0),
+        BinaryStatus.notInstalled || BinaryStatus.error => 0.0,
+      };
+    }
+
+    final ytDlpValue = valueFor(ytDlpStatus, ytDlpProgress);
+    final ffmpegValue = valueFor(ffmpegStatus, ffmpegProgress);
+    return ((ytDlpValue + ffmpegValue) / 2).clamp(0.0, 1.0);
+  }
+
   BinaryProgress copyWith({
     BinaryStatus? ytDlpStatus,
     BinaryStatus? ffmpegStatus,
     double? ytDlpProgress,
     double? ffmpegProgress,
     String? error,
+    bool clearError = false,
   }) {
     return BinaryProgress(
       ytDlpStatus: ytDlpStatus ?? this.ytDlpStatus,
       ffmpegStatus: ffmpegStatus ?? this.ffmpegStatus,
       ytDlpProgress: ytDlpProgress ?? this.ytDlpProgress,
       ffmpegProgress: ffmpegProgress ?? this.ffmpegProgress,
-      error: error ?? this.error,
+      error: clearError ? null : error ?? this.error,
     );
   }
 }
@@ -61,7 +76,9 @@ class BinaryManager {
 
   bool get ytDlpExists => File(ytDlpPath).existsSync();
   bool get ffmpegExists => File(ffmpegPath).existsSync();
-  bool get allBinariesExist => ytDlpExists && ffmpegExists;
+  bool get ffprobeExists => File(ffprobePath).existsSync();
+  bool get ffmpegBundleExists => ffmpegExists && ffprobeExists;
+  bool get allBinariesExist => ytDlpExists && ffmpegBundleExists;
 
   Future<void> ensureBinDir() async {
     final dir = Directory(_binDir);
@@ -71,12 +88,36 @@ class BinaryManager {
   }
 
   Future<BinaryProgress> checkStatus() async {
+    await installBundledBinaries();
     return BinaryProgress(
       ytDlpStatus: ytDlpExists ? BinaryStatus.ready : BinaryStatus.notInstalled,
-      ffmpegStatus: ffmpegExists
+      ffmpegStatus: ffmpegBundleExists
           ? BinaryStatus.ready
           : BinaryStatus.notInstalled,
+      ytDlpProgress: ytDlpExists ? 1.0 : 0.0,
+      ffmpegProgress: ffmpegBundleExists ? 1.0 : 0.0,
     );
+  }
+
+  Future<void> installBundledBinaries() async {
+    final executableDir = p.dirname(Platform.resolvedExecutable);
+    final bundledBinDir = Directory(p.join(executableDir, 'bin'));
+    if (!bundledBinDir.existsSync()) return;
+
+    await ensureBinDir();
+    await _copyBundledBinaryIfMissing(bundledBinDir, 'yt-dlp.exe');
+    await _copyBundledBinaryIfMissing(bundledBinDir, 'ffmpeg.exe');
+    await _copyBundledBinaryIfMissing(bundledBinDir, 'ffprobe.exe');
+  }
+
+  Future<void> _copyBundledBinaryIfMissing(
+    Directory bundledBinDir,
+    String fileName,
+  ) async {
+    final source = File(p.join(bundledBinDir.path, fileName));
+    final destination = File(p.join(_binDir, fileName));
+    if (!source.existsSync() || destination.existsSync()) return;
+    await source.copy(destination.path);
   }
 
   Future<void> downloadYtDlp({

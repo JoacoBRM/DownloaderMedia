@@ -49,6 +49,23 @@ dart run msix:create
 
 The MSIX metadata lives in `pubspec.yaml` under `msix_config`.
 
+To create a double-click Windows installer:
+
+```powershell
+.\scripts\build_installer.ps1
+```
+
+The installer is generated at:
+
+```text
+dist\downloader_media-setup.exe
+```
+
+The installer includes the Windows release files and the command-line tools in
+`bin\` when they are already present locally, or downloads them during packaging.
+On first launch, bundled tools are copied to `%LOCALAPPDATA%\DownloaderMedia\bin`
+so the app can use a writable components folder.
+
 ## Tests and Analysis
 
 ```powershell

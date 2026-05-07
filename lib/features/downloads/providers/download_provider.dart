@@ -41,12 +41,17 @@ class BinaryStatusNotifier extends Notifier<BinaryProgress> {
   }
 
   Future<void> downloadAll() async {
+    state = (await _binaryManager.checkStatus()).copyWith(clearError: true);
     if (state.allReady) return;
 
     try {
       // Download yt-dlp
       if (!_binaryManager.ytDlpExists) {
-        state = state.copyWith(ytDlpStatus: BinaryStatus.downloading);
+        state = state.copyWith(
+          ytDlpStatus: BinaryStatus.downloading,
+          ytDlpProgress: 0.0,
+          clearError: true,
+        );
         await _binaryManager.downloadYtDlp(
           onProgress: (p) {
             state = state.copyWith(ytDlpProgress: p);
@@ -59,8 +64,12 @@ class BinaryStatusNotifier extends Notifier<BinaryProgress> {
       }
 
       // Download ffmpeg
-      if (!_binaryManager.ffmpegExists) {
-        state = state.copyWith(ffmpegStatus: BinaryStatus.downloading);
+      if (!_binaryManager.ffmpegBundleExists) {
+        state = state.copyWith(
+          ffmpegStatus: BinaryStatus.downloading,
+          ffmpegProgress: 0.0,
+          clearError: true,
+        );
         await _binaryManager.downloadFfmpeg(
           onProgress: (p) {
             state = state.copyWith(ffmpegProgress: p);
@@ -72,7 +81,15 @@ class BinaryStatusNotifier extends Notifier<BinaryProgress> {
         );
       }
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(
+        ytDlpStatus: _binaryManager.ytDlpExists
+            ? BinaryStatus.ready
+            : BinaryStatus.error,
+        ffmpegStatus: _binaryManager.ffmpegBundleExists
+            ? BinaryStatus.ready
+            : BinaryStatus.error,
+        error: e.toString(),
+      );
     }
   }
 }
