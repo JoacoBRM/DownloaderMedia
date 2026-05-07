@@ -14,9 +14,13 @@ class DownloadsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final queue = ref.watch(downloadQueueProvider);
-    final activeDownloads = queue.where((DownloadTask t) => t.isActive || t.isQueued).toList();
+    final activeDownloads = queue
+        .where((DownloadTask t) => t.isActive || t.isQueued)
+        .toList();
     final completed = queue.where((DownloadTask t) => t.isCompleted).toList();
-    final failed = queue.where((DownloadTask t) => t.isFailed || t.isCancelled).toList();
+    final failed = queue
+        .where((DownloadTask t) => t.isFailed || t.isCancelled)
+        .toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
@@ -35,12 +39,17 @@ class DownloadsScreen extends ConsumerWidget {
                 TextButton.icon(
                   onPressed: () =>
                       ref.read(downloadQueueProvider.notifier).clearCompleted(),
-                  icon: const Icon(Icons.done_all_rounded,
-                      size: 16, color: AppColors.textMuted),
+                  icon: const Icon(
+                    Icons.done_all_rounded,
+                    size: 16,
+                    color: AppColors.textMuted,
+                  ),
                   label: Text(
                     l10n.get('clearCompleted'),
                     style: const TextStyle(
-                        color: AppColors.textMuted, fontSize: 13),
+                      color: AppColors.textMuted,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
             ],
@@ -55,7 +64,8 @@ class DownloadsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             ...activeDownloads.map(
-              (task) => _DownloadCard(task: task).animate().fadeIn(duration: 300.ms),
+              (task) =>
+                  _DownloadCard(task: task).animate().fadeIn(duration: 300.ms),
             ),
             const SizedBox(height: 24),
           ],
@@ -68,7 +78,8 @@ class DownloadsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             ...completed.map(
-              (task) => _DownloadCard(task: task).animate().fadeIn(duration: 300.ms),
+              (task) =>
+                  _DownloadCard(task: task).animate().fadeIn(duration: 300.ms),
             ),
             const SizedBox(height: 24),
           ],
@@ -81,7 +92,8 @@ class DownloadsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             ...failed.map(
-              (task) => _DownloadCard(task: task).animate().fadeIn(duration: 300.ms),
+              (task) =>
+                  _DownloadCard(task: task).animate().fadeIn(duration: 300.ms),
             ),
           ],
 
@@ -92,8 +104,11 @@ class DownloadsScreen extends ConsumerWidget {
                 padding: const EdgeInsets.only(top: 100),
                 child: Column(
                   children: [
-                    Icon(Icons.download_rounded,
-                        size: 64, color: AppColors.textMuted.withValues(alpha: 0.3)),
+                    Icon(
+                      Icons.download_rounded,
+                      size: 64,
+                      color: AppColors.textMuted.withValues(alpha: 0.3),
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       l10n.get('noDownloads'),
@@ -131,10 +146,7 @@ class _SectionTitle extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
       ],
     );
   }
@@ -229,21 +241,39 @@ class _DownloadCard extends ConsumerWidget {
               // Actions
               if (task.isActive)
                 IconButton(
-                  icon: const Icon(Icons.close_rounded,
-                      color: AppColors.textMuted, size: 18),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: AppColors.textMuted,
+                    size: 18,
+                  ),
                   onPressed: () => ref
                       .read(downloadQueueProvider.notifier)
                       .cancelTask(task.id),
-                  tooltip: 'Cancel',
+                  tooltip: AppLocalizations.of(context).get('cancel'),
+                ),
+              if (task.isFailed || task.isCancelled)
+                IconButton(
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    color: AppColors.textMuted,
+                    size: 18,
+                  ),
+                  onPressed: () => ref
+                      .read(downloadQueueProvider.notifier)
+                      .retryTask(task.id),
+                  tooltip: AppLocalizations.of(context).get('retry'),
                 ),
               if (task.isCompleted || task.isFailed || task.isCancelled)
                 IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded,
-                      color: AppColors.textMuted, size: 18),
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppColors.textMuted,
+                    size: 18,
+                  ),
                   onPressed: () => ref
                       .read(downloadQueueProvider.notifier)
                       .removeTask(task.id),
-                  tooltip: 'Remove',
+                  tooltip: AppLocalizations.of(context).get('remove'),
                 ),
             ],
           ),
@@ -259,8 +289,9 @@ class _DownloadCard extends ConsumerWidget {
                       value: task.isQueued ? null : task.progress,
                       minHeight: 6,
                       backgroundColor: AppColors.bgElevated,
-                      valueColor:
-                          AlwaysStoppedAnimation(_statusColor(task.status)),
+                      valueColor: AlwaysStoppedAnimation(
+                        _statusColor(task.status),
+                      ),
                     ),
                   ),
                 ),
@@ -332,7 +363,7 @@ class _StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        _label,
+        _label(context),
         style: TextStyle(
           color: color,
           fontSize: 10,
@@ -342,24 +373,25 @@ class _StatusBadge extends StatelessWidget {
     );
   }
 
-  String get _label {
+  String _label(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     switch (status) {
       case DownloadStatus.queued:
-        return 'QUEUED';
+        return l10n.get('queued').toUpperCase();
       case DownloadStatus.fetchingInfo:
-        return 'FETCHING';
+        return l10n.get('fetchingInfo').toUpperCase();
       case DownloadStatus.downloading:
-        return 'DOWNLOADING';
+        return l10n.get('downloading').toUpperCase();
       case DownloadStatus.merging:
-        return 'MERGING';
+        return l10n.get('merging').toUpperCase();
       case DownloadStatus.converting:
-        return 'CONVERTING';
+        return l10n.get('converting').toUpperCase();
       case DownloadStatus.completed:
-        return 'DONE';
+        return l10n.get('completed').toUpperCase();
       case DownloadStatus.failed:
-        return 'FAILED';
+        return l10n.get('failed').toUpperCase();
       case DownloadStatus.cancelled:
-        return 'CANCELLED';
+        return l10n.get('cancelled').toUpperCase();
     }
   }
 

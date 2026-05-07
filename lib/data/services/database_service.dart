@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../../core/constants/app_constants.dart';
 import '../models/download_task.dart';
 
 class DatabaseService {
@@ -78,14 +79,13 @@ class DatabaseService {
 
   Future<void> deleteTask(String id) async {
     final db = await database;
-    await db.delete(
-      'download_history',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    await db.delete('download_history', where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<List<DownloadTask>> getHistory({int limit = 50, int offset = 0}) async {
+  Future<List<DownloadTask>> getHistory({
+    int limit = 50,
+    int offset = 0,
+  }) async {
     final db = await database;
     final results = await db.query(
       'download_history',
@@ -105,6 +105,35 @@ class DatabaseService {
       orderBy: 'created_at DESC',
     );
     return results.map((row) => DownloadTask.fromMap(row)).toList();
+  }
+
+  Future<List<DownloadTask>> getUnfinishedTasks() async {
+    final db = await database;
+    final placeholders = List.filled(
+      AppConstants.resumableStatuses.length,
+      '?',
+    ).join(',');
+    final results = await db.query(
+      'download_history',
+      where: 'status IN ($placeholders)',
+      whereArgs: AppConstants.resumableStatuses,
+      orderBy: 'created_at DESC',
+    );
+    return results.map((row) => DownloadTask.fromMap(row)).toList();
+  }
+
+  Future<void> markInterruptedTasksFailed(String error) async {
+    final db = await database;
+    final placeholders = List.filled(
+      AppConstants.resumableStatuses.length,
+      '?',
+    ).join(',');
+    await db.update(
+      'download_history',
+      {'status': DownloadStatus.failed.name, 'error': error},
+      where: 'status IN ($placeholders)',
+      whereArgs: AppConstants.resumableStatuses,
+    );
   }
 
   Future<void> clearHistory() async {

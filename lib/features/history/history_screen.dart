@@ -33,15 +33,19 @@ class HistoryScreen extends ConsumerWidget {
               historyAsync.whenOrNull(
                     data: (items) => items.isNotEmpty
                         ? TextButton.icon(
-                            onPressed: () => ref
-                                .read(historyProvider.notifier)
-                                .clearAll(),
-                            icon: const Icon(Icons.delete_sweep_rounded,
-                                size: 16, color: AppColors.textMuted),
+                            onPressed: () =>
+                                ref.read(historyProvider.notifier).clearAll(),
+                            icon: const Icon(
+                              Icons.delete_sweep_rounded,
+                              size: 16,
+                              color: AppColors.textMuted,
+                            ),
                             label: Text(
                               l10n.get('clearHistory'),
                               style: const TextStyle(
-                                  color: AppColors.textMuted, fontSize: 13),
+                                color: AppColors.textMuted,
+                                fontSize: 13,
+                              ),
                             ),
                           )
                         : null,
@@ -59,10 +63,11 @@ class HistoryScreen extends ConsumerWidget {
                     padding: const EdgeInsets.only(top: 100),
                     child: Column(
                       children: [
-                        Icon(Icons.history_rounded,
-                            size: 64,
-                            color:
-                                AppColors.textMuted.withValues(alpha: 0.3)),
+                        Icon(
+                          Icons.history_rounded,
+                          size: 64,
+                          color: AppColors.textMuted.withValues(alpha: 0.3),
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           l10n.get('noHistory'),
@@ -79,9 +84,9 @@ class HistoryScreen extends ConsumerWidget {
 
               return Column(
                 children: items.map((task) {
-                  return _HistoryItem(task: task)
-                      .animate()
-                      .fadeIn(duration: 300.ms);
+                  return _HistoryItem(
+                    task: task,
+                  ).animate().fadeIn(duration: 300.ms);
                 }).toList(),
               );
             },
@@ -164,7 +169,8 @@ class _HistoryItem extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${task.format.toUpperCase()} • ${task.completedAt != null ? FormatUtils.timeAgo(task.completedAt!) : ''}',
+                  '${task.format.toUpperCase()} - '
+                  '${task.completedAt != null ? FormatUtils.timeAgo(task.completedAt!, localeCode: Localizations.localeOf(context).languageCode) : ''}',
                   style: const TextStyle(
                     color: AppColors.textMuted,
                     fontSize: 11,
@@ -176,17 +182,23 @@ class _HistoryItem extends ConsumerWidget {
 
           // Actions
           IconButton(
-            icon: const Icon(Icons.folder_open_rounded,
-                color: AppColors.textMuted, size: 18),
+            icon: const Icon(
+              Icons.folder_open_rounded,
+              color: AppColors.textMuted,
+              size: 18,
+            ),
             onPressed: () => _openFolder(task.outputPath),
-            tooltip: 'Open folder',
+            tooltip: AppLocalizations.of(context).get('openFolder'),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline_rounded,
-                color: AppColors.textMuted, size: 18),
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              color: AppColors.textMuted,
+              size: 18,
+            ),
             onPressed: () =>
                 ref.read(historyProvider.notifier).deleteItem(task.id),
-            tooltip: 'Remove',
+            tooltip: AppLocalizations.of(context).get('remove'),
           ),
         ],
       ),

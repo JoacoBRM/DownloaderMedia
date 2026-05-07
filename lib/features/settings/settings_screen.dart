@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/l10n/app_localizations.dart';
 import '../../core/constants/app_constants.dart';
+import '../downloads/providers/download_provider.dart';
 import 'providers/settings_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -25,11 +26,12 @@ class SettingsScreen extends ConsumerWidget {
           ).animate().fadeIn(duration: 300.ms),
           const SizedBox(height: 32),
 
-          // Language
           _SettingsSection(
             title: l10n.get('language'),
             icon: Icons.language_rounded,
-            child: Row(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _LanguageChip(
                   label: 'English',
@@ -38,9 +40,8 @@ class SettingsScreen extends ConsumerWidget {
                       .read(settingsProvider.notifier)
                       .setLocale(const Locale('en')),
                 ),
-                const SizedBox(width: 8),
                 _LanguageChip(
-                  label: 'Español',
+                  label: 'Espanol',
                   isSelected: settings.locale.languageCode == 'es',
                   onTap: () => ref
                       .read(settingsProvider.notifier)
@@ -51,67 +52,111 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // Default video quality
           _SettingsSection(
             title: l10n.get('defaultQuality'),
             icon: Icons.high_quality_rounded,
             child: Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: ['360', '480', '720', '1080', '1440', '2160']
-                  .map((q) => _QualityChip(
-                        label: '${q}p',
-                        isSelected: settings.defaultVideoQuality == q,
-                        onTap: () => ref
-                            .read(settingsProvider.notifier)
-                            .setDefaultVideoQuality(q),
-                      ))
+                  .map(
+                    (q) => _QualityChip(
+                      label: '${q}p',
+                      isSelected: settings.defaultVideoQuality == q,
+                      onTap: () => ref
+                          .read(settingsProvider.notifier)
+                          .setDefaultVideoQuality(q),
+                    ),
+                  )
                   .toList(),
             ),
           ),
           const SizedBox(height: 16),
 
-          // Default audio format
           _SettingsSection(
-            title: l10n.get('defaultFormat'),
+            title: l10n.get('defaultVideoFormat'),
+            icon: Icons.movie_creation_rounded,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: ['mp4', 'mkv', 'webm']
+                  .map(
+                    (f) => _QualityChip(
+                      label: f.toUpperCase(),
+                      isSelected: settings.defaultVideoFormat == f,
+                      onTap: () => ref
+                          .read(settingsProvider.notifier)
+                          .setDefaultVideoFormat(f),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          _SettingsSection(
+            title: l10n.get('defaultAudioFormat'),
             icon: Icons.music_note_rounded,
             child: Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: ['mp3', 'aac', 'flac', 'wav', 'opus']
-                  .map((f) => _QualityChip(
-                        label: f.toUpperCase(),
-                        isSelected: settings.defaultAudioFormat == f,
-                        onTap: () => ref
-                            .read(settingsProvider.notifier)
-                            .setDefaultAudioFormat(f),
-                      ))
+                  .map(
+                    (f) => _QualityChip(
+                      label: f.toUpperCase(),
+                      isSelected: settings.defaultAudioFormat == f,
+                      onTap: () => ref
+                          .read(settingsProvider.notifier)
+                          .setDefaultAudioFormat(f),
+                    ),
+                  )
                   .toList(),
             ),
           ),
           const SizedBox(height: 16),
 
-          // Max concurrent downloads
+          _SettingsSection(
+            title: l10n.get('defaultAudioQuality'),
+            icon: Icons.graphic_eq_rounded,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: ['128', '192', '256', '320']
+                  .map(
+                    (q) => _QualityChip(
+                      label: '$q kbps',
+                      isSelected: settings.defaultAudioQuality == q,
+                      onTap: () => ref
+                          .read(settingsProvider.notifier)
+                          .setDefaultAudioQuality(q),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           _SettingsSection(
             title: l10n.get('maxDownloads'),
             icon: Icons.speed_rounded,
-            child: Row(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [1, 2, 3, 4, 5]
-                  .map((n) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: _QualityChip(
-                          label: '$n',
-                          isSelected:
-                              settings.maxConcurrentDownloads == n,
-                          onTap: () => ref
-                              .read(settingsProvider.notifier)
-                              .setMaxDownloads(n),
-                        ),
-                      ))
+                  .map(
+                    (n) => _QualityChip(
+                      label: '$n',
+                      isSelected: settings.maxConcurrentDownloads == n,
+                      onTap: () => ref
+                          .read(settingsProvider.notifier)
+                          .setMaxDownloads(n),
+                    ),
+                  )
                   .toList(),
             ),
           ),
           const SizedBox(height: 32),
 
-          // About
           _SettingsSection(
             title: l10n.get('about'),
             icon: Icons.info_outline_rounded,
@@ -124,7 +169,13 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Powered by yt-dlp & FFmpeg',
+                  l10n.get('poweredBy'),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${l10n.get('binaryLocation')}: '
+                  '${ref.read(binaryManagerProvider).binDir}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -163,12 +214,14 @@ class _SettingsSection extends StatelessWidget {
             children: [
               Icon(icon, color: AppColors.primary, size: 20),
               const SizedBox(width: 10),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],

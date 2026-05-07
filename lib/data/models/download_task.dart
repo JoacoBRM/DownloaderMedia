@@ -105,6 +105,24 @@ class DownloadTask {
   bool get isCancelled => status == DownloadStatus.cancelled;
   bool get isQueued => status == DownloadStatus.queued;
 
+  DownloadTask resetForRetry() {
+    return DownloadTask(
+      id: id,
+      url: url,
+      title: title,
+      thumbnailUrl: thumbnailUrl,
+      platform: platform,
+      outputPath: outputPath,
+      type: type,
+      format: format,
+      quality: quality,
+      status: DownloadStatus.queued,
+      progress: 0.0,
+      duration: duration,
+      createdAt: DateTime.now(),
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

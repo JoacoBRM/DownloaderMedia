@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/constants/app_constants.dart';
 
-final settingsProvider =
-    NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
+final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(
+  SettingsNotifier.new,
+);
 
 class AppSettings {
   final Locale locale;
@@ -15,11 +17,11 @@ class AppSettings {
 
   const AppSettings({
     this.locale = const Locale('en'),
-    this.maxConcurrentDownloads = 3,
-    this.defaultVideoQuality = '1080',
-    this.defaultAudioQuality = '192',
-    this.defaultVideoFormat = 'mp4',
-    this.defaultAudioFormat = 'mp3',
+    this.maxConcurrentDownloads = AppConstants.maxConcurrentDownloads,
+    this.defaultVideoQuality = AppConstants.defaultVideoQuality,
+    this.defaultAudioQuality = AppConstants.defaultAudioQuality,
+    this.defaultVideoFormat = AppConstants.defaultVideoFormat,
+    this.defaultAudioFormat = AppConstants.defaultAudioFormat,
   });
 
   AppSettings copyWith({
@@ -53,11 +55,16 @@ class SettingsNotifier extends Notifier<AppSettings> {
     final prefs = await SharedPreferences.getInstance();
     state = AppSettings(
       locale: Locale(prefs.getString('locale') ?? 'en'),
-      maxConcurrentDownloads: prefs.getInt('maxDownloads') ?? 3,
-      defaultVideoQuality: prefs.getString('videoQuality') ?? '1080',
-      defaultAudioQuality: prefs.getString('audioQuality') ?? '192',
-      defaultVideoFormat: prefs.getString('videoFormat') ?? 'mp4',
-      defaultAudioFormat: prefs.getString('audioFormat') ?? 'mp3',
+      maxConcurrentDownloads:
+          prefs.getInt('maxDownloads') ?? AppConstants.maxConcurrentDownloads,
+      defaultVideoQuality:
+          prefs.getString('videoQuality') ?? AppConstants.defaultVideoQuality,
+      defaultAudioQuality:
+          prefs.getString('audioQuality') ?? AppConstants.defaultAudioQuality,
+      defaultVideoFormat:
+          prefs.getString('videoFormat') ?? AppConstants.defaultVideoFormat,
+      defaultAudioFormat:
+          prefs.getString('audioFormat') ?? AppConstants.defaultAudioFormat,
     );
   }
 
@@ -77,6 +84,18 @@ class SettingsNotifier extends Notifier<AppSettings> {
     state = state.copyWith(defaultVideoQuality: quality);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('videoQuality', quality);
+  }
+
+  Future<void> setDefaultAudioQuality(String quality) async {
+    state = state.copyWith(defaultAudioQuality: quality);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('audioQuality', quality);
+  }
+
+  Future<void> setDefaultVideoFormat(String format) async {
+    state = state.copyWith(defaultVideoFormat: format);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('videoFormat', format);
   }
 
   Future<void> setDefaultAudioFormat(String format) async {

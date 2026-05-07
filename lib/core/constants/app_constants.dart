@@ -19,6 +19,7 @@ class AppConstants {
   static const String defaultAudioQuality = '192';
   static const String defaultVideoFormat = 'mp4';
   static const String defaultVideoQuality = '1080';
+  static const int maxFilenameLength = 140;
 
   // Binary URLs
   static const String ytDlpDownloadUrl =
@@ -41,9 +42,15 @@ class AppConstants {
     r'\[download\]\s+([\d.]+)%\s+of\s+~?\s*([\d.]+\w+)\s+at\s+([\d.]+\w+/s)\s+ETA\s+([\d:]+)',
   );
 
-  static final RegExp progressSimpleRegex = RegExp(
-    r'\[download\]\s+([\d.]+)%',
-  );
+  static final RegExp progressSimpleRegex = RegExp(r'\[download\]\s+([\d.]+)%');
+
+  static const List<String> resumableStatuses = [
+    'queued',
+    'fetchingInfo',
+    'downloading',
+    'merging',
+    'converting',
+  ];
 
   // yt-dlp format strings
   static const Map<String, String> videoFormats = {

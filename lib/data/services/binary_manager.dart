@@ -46,10 +46,14 @@ class BinaryManager {
   final Dio _dio = Dio();
 
   String get _binDir {
-    final exeDir = p.dirname(Platform.resolvedExecutable);
-    return p.join(exeDir, 'bin');
+    final localAppData = Platform.environment['LOCALAPPDATA'];
+    final appData = Platform.environment['APPDATA'];
+    final baseDir =
+        localAppData ?? appData ?? p.dirname(Platform.resolvedExecutable);
+    return p.join(baseDir, AppConstants.appName, 'bin');
   }
 
+  String get binDir => _binDir;
   String get ytDlpPath => p.join(_binDir, 'yt-dlp.exe');
   String get ffmpegPath => p.join(_binDir, 'ffmpeg.exe');
   String get ffprobePath => p.join(_binDir, 'ffprobe.exe');
@@ -69,8 +73,9 @@ class BinaryManager {
   Future<BinaryProgress> checkStatus() async {
     return BinaryProgress(
       ytDlpStatus: ytDlpExists ? BinaryStatus.ready : BinaryStatus.notInstalled,
-      ffmpegStatus:
-          ffmpegExists ? BinaryStatus.ready : BinaryStatus.notInstalled,
+      ffmpegStatus: ffmpegExists
+          ? BinaryStatus.ready
+          : BinaryStatus.notInstalled,
     );
   }
 
@@ -108,10 +113,7 @@ class BinaryManager {
 
     // Extract ffmpeg.exe and ffprobe.exe from the zip
     onProgress(0.85);
-    await compute(_extractFfmpeg, {
-      'zipPath': zipPath,
-      'binDir': _binDir,
-    });
+    await compute(_extractFfmpeg, {'zipPath': zipPath, 'binDir': _binDir});
 
     // Clean up zip
     onProgress(0.95);
@@ -135,6 +137,14 @@ class BinaryManager {
         final outFile = File(p.join(binDir, name));
         outFile.writeAsBytesSync(file.content as List<int>);
       }
+    }
+
+    final ffmpeg = File(p.join(binDir, 'ffmpeg.exe'));
+    final ffprobe = File(p.join(binDir, 'ffprobe.exe'));
+    if (!ffmpeg.existsSync() || !ffprobe.existsSync()) {
+      throw const FormatException(
+        'FFmpeg archive did not contain required binaries',
+      );
     }
   }
 

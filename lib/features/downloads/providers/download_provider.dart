@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/url_validator.dart';
 import '../../../data/models/download_task.dart';
 import '../../../data/models/video_info.dart';
 import '../../../data/services/binary_manager.dart';
 import '../../../data/services/database_service.dart';
 import '../../../data/services/ytdlp_service.dart';
+import '../../settings/providers/settings_provider.dart';
 
 // Service providers
 final binaryManagerProvider = Provider<BinaryManager>((ref) {
@@ -23,7 +24,8 @@ final databaseServiceProvider = Provider<DatabaseService>((ref) {
 // Binary status provider
 final binaryStatusProvider =
     NotifierProvider<BinaryStatusNotifier, BinaryProgress>(
-        BinaryStatusNotifier.new);
+      BinaryStatusNotifier.new,
+    );
 
 class BinaryStatusNotifier extends Notifier<BinaryProgress> {
   @override
@@ -77,12 +79,23 @@ class BinaryStatusNotifier extends Notifier<BinaryProgress> {
 
 // Video info fetch provider
 final videoInfoProvider =
-    NotifierProvider<VideoInfoNotifier, AsyncValue<VideoInfo?>>(
-        VideoInfoNotifier.new);
+    NotifierProvider<VideoInfoNotifier, AsyncValue<MediaPreview?>>(
+      VideoInfoNotifier.new,
+    );
 
-class VideoInfoNotifier extends Notifier<AsyncValue<VideoInfo?>> {
+class MediaPreview {
+  final VideoInfo info;
+  final PlaylistInfo? playlist;
+
+  const MediaPreview({required this.info, this.playlist});
+
+  bool get isPlaylist => playlist != null || info.isPlaylist;
+  List<VideoInfo> get entries => playlist?.entries ?? const [];
+}
+
+class VideoInfoNotifier extends Notifier<AsyncValue<MediaPreview?>> {
   @override
-  AsyncValue<VideoInfo?> build() {
+  AsyncValue<MediaPreview?> build() {
     return const AsyncValue.data(null);
   }
 
@@ -91,8 +104,15 @@ class VideoInfoNotifier extends Notifier<AsyncValue<VideoInfo?>> {
   Future<void> fetchInfo(String url) async {
     state = const AsyncValue.loading();
     try {
-      final info = await _service.extractInfo(url);
-      state = AsyncValue.data(info);
+      if (UrlValidator.isPlaylist(url)) {
+        final playlist = await _service.extractPlaylistInfo(url);
+        state = AsyncValue.data(
+          MediaPreview(info: playlist.toVideoInfo(), playlist: playlist),
+        );
+      } else {
+        final info = await _service.extractInfo(url);
+        state = AsyncValue.data(MediaPreview(info: info));
+      }
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -106,7 +126,8 @@ class VideoInfoNotifier extends Notifier<AsyncValue<VideoInfo?>> {
 // Download queue provider
 final downloadQueueProvider =
     NotifierProvider<DownloadQueueNotifier, List<DownloadTask>>(
-        DownloadQueueNotifier.new);
+      DownloadQueueNotifier.new,
+    );
 
 class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
   final Map<String, StreamSubscription> _subscriptions = {};
@@ -114,6 +135,12 @@ class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
 
   @override
   List<DownloadTask> build() {
+    ref.listen(settingsProvider, (previous, next) {
+      if (previous?.maxConcurrentDownloads != next.maxConcurrentDownloads) {
+        _processQueue();
+      }
+    });
+    _restoreInterruptedTasks();
     ref.onDispose(() {
       _ytDlpService.cancelAll();
       for (final sub in _subscriptions.values) {
@@ -125,6 +152,22 @@ class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
 
   YtDlpService get _ytDlpService => ref.read(ytDlpServiceProvider);
   DatabaseService get _dbService => ref.read(databaseServiceProvider);
+  int get _maxConcurrentDownloads =>
+      ref.read(settingsProvider).maxConcurrentDownloads;
+
+  Future<void> _restoreInterruptedTasks() async {
+    final interrupted = await _dbService.getUnfinishedTasks();
+    if (interrupted.isEmpty) return;
+
+    const message =
+        'The app closed before this download finished. Retry it if needed.';
+    final failed = [
+      for (final task in interrupted)
+        task.copyWith(status: DownloadStatus.failed, error: message),
+    ];
+    await _dbService.markInterruptedTasksFailed(message);
+    state = [...state, ...failed];
+  }
 
   void addTask(DownloadTask task) {
     state = [...state, task];
@@ -142,9 +185,10 @@ class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
 
   void cancelTask(String taskId) {
     _ytDlpService.cancelDownload(taskId);
+    final wasRunning = _subscriptions.containsKey(taskId);
     _subscriptions[taskId]?.cancel();
     _subscriptions.remove(taskId);
-    _activeCount--;
+    if (wasRunning) _decrementActive();
 
     _updateTask(taskId, (t) => t.copyWith(status: DownloadStatus.cancelled));
     _processQueue();
@@ -158,6 +202,11 @@ class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
     _dbService.deleteTask(taskId);
   }
 
+  void retryTask(String taskId) {
+    _updateTask(taskId, (t) => t.resetForRetry(), persistImmediately: true);
+    _processQueue();
+  }
+
   void clearCompleted() {
     final completed = state.where((t) => t.isCompleted).toList();
     state = state.where((t) => !t.isCompleted).toList();
@@ -167,11 +216,11 @@ class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
   }
 
   void _processQueue() {
-    while (_activeCount < AppConstants.maxConcurrentDownloads) {
+    while (_activeCount < _maxConcurrentDownloads) {
       final nextTask = state.cast<DownloadTask?>().firstWhere(
-            (t) => t!.isQueued,
-            orElse: () => null,
-          );
+        (t) => t!.isQueued,
+        orElse: () => null,
+      );
       if (nextTask == null) break;
       _startDownload(nextTask);
     }
@@ -179,8 +228,7 @@ class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
 
   void _startDownload(DownloadTask task) {
     _activeCount++;
-    _updateTask(
-        task.id, (t) => t.copyWith(status: DownloadStatus.downloading));
+    _updateTask(task.id, (t) => t.copyWith(status: DownloadStatus.downloading));
 
     late final Stream<DownloadProgress> stream;
 
@@ -212,10 +260,24 @@ class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
 
     _subscriptions[task.id] = stream.listen(
       (progress) {
+        if (progress.phase != null) {
+          _updateTask(
+            task.id,
+            (t) => t.copyWith(
+              status: progress.phase == 'merging'
+                  ? DownloadStatus.merging
+                  : DownloadStatus.converting,
+            ),
+          );
+          return;
+        }
+
+        final percent = progress.percent;
+        if (percent == null) return;
         _updateTask(
           task.id,
           (t) => t.copyWith(
-            progress: progress.percent / 100.0,
+            progress: percent / 100.0,
             speed: progress.speed ?? t.speed,
             eta: progress.eta ?? t.eta,
             fileSize: progress.totalSize ?? t.fileSize,
@@ -223,7 +285,7 @@ class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
         );
       },
       onError: (error) {
-        _activeCount--;
+        _decrementActive();
         _subscriptions.remove(task.id);
         _updateTask(
           task.id,
@@ -235,7 +297,7 @@ class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
         _processQueue();
       },
       onDone: () {
-        _activeCount--;
+        _decrementActive();
         _subscriptions.remove(task.id);
         final current = state.firstWhere((t) => t.id == task.id);
         if (current.status != DownloadStatus.cancelled &&
@@ -254,18 +316,31 @@ class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
     );
   }
 
-  void _updateTask(String taskId, DownloadTask Function(DownloadTask) update) {
+  void _decrementActive() {
+    if (_activeCount > 0) {
+      _activeCount--;
+    }
+  }
+
+  void _updateTask(
+    String taskId,
+    DownloadTask Function(DownloadTask) update, {
+    bool persistImmediately = false,
+  }) {
     state = [
       for (final task in state)
         if (task.id == taskId) update(task) else task,
     ];
 
     final updated = state.cast<DownloadTask?>().firstWhere(
-          (t) => t!.id == taskId,
-          orElse: () => null,
-        );
+      (t) => t!.id == taskId,
+      orElse: () => null,
+    );
     if (updated != null &&
-        (updated.isCompleted || updated.isFailed || updated.isCancelled)) {
+        (persistImmediately ||
+            updated.isCompleted ||
+            updated.isFailed ||
+            updated.isCancelled)) {
       _dbService.updateTask(updated);
     }
   }
@@ -274,7 +349,8 @@ class DownloadQueueNotifier extends Notifier<List<DownloadTask>> {
 // History provider
 final historyProvider =
     NotifierProvider<HistoryNotifier, AsyncValue<List<DownloadTask>>>(
-        HistoryNotifier.new);
+      HistoryNotifier.new,
+    );
 
 class HistoryNotifier extends Notifier<AsyncValue<List<DownloadTask>>> {
   @override

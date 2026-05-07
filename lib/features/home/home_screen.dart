@@ -74,11 +74,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? settings.defaultAudioQuality
         : settings.defaultVideoQuality;
 
-    // Sanitize filename
-    final sanitizedTitle = info.title
-        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+    final sanitizedTitle = _sanitizeFilename(info.title);
     final outputPath = p.join(folder, '$sanitizedTitle.$ext');
 
     final task = DownloadTask(
@@ -101,14 +97,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Added "${info.title}" to download queue',
-            style: const TextStyle(color: Colors.white),
-          ),
+          content: Text(l10n.get('addedToQueue')),
           backgroundColor: AppColors.success,
         ),
       );
     }
+  }
+
+  Future<void> _startPlaylistDownload(
+    List<VideoInfo> entries,
+    DownloadType type,
+  ) async {
+    if (entries.isEmpty) return;
+    final settings = ref.read(settingsProvider);
+    final l10n = AppLocalizations.of(context);
+
+    final folder = await FilePicker.getDirectoryPath(
+      dialogTitle: l10n.get('selectFolder'),
+    );
+    if (folder == null) return;
+
+    final ext = type == DownloadType.audio
+        ? settings.defaultAudioFormat
+        : settings.defaultVideoFormat;
+    final quality = type == DownloadType.audio
+        ? settings.defaultAudioQuality
+        : settings.defaultVideoQuality;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    final tasks = <DownloadTask>[];
+    for (var index = 0; index < entries.length; index++) {
+      final entry = entries[index];
+      if (!UrlValidator.isValidUrl(entry.url)) continue;
+      final prefix = (index + 1).toString().padLeft(2, '0');
+      tasks.add(
+        DownloadTask(
+          id: '${now}_$index',
+          url: entry.url,
+          title: entry.title,
+          thumbnailUrl: entry.thumbnailUrl,
+          platform: entry.platform ?? _detectedPlatform,
+          outputPath: p.join(
+            folder,
+            '$prefix - ${_sanitizeFilename(entry.title)}.$ext',
+          ),
+          type: type,
+          format: ext,
+          quality: quality,
+          status: DownloadStatus.queued,
+          duration: entry.duration,
+          createdAt: DateTime.now(),
+        ),
+      );
+    }
+
+    if (tasks.isEmpty) return;
+    ref.read(downloadQueueProvider.notifier).addTasks(tasks);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.get('addedPlaylistToQueue')),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
+  String _sanitizeFilename(String title) {
+    final sanitized = title
+        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final fallback = sanitized.isEmpty ? 'download' : sanitized;
+    if (fallback.length <= AppConstants.maxFilenameLength) return fallback;
+    return fallback.substring(0, AppConstants.maxFilenameLength).trim();
   }
 
   @override
@@ -141,15 +204,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             runSpacing: 8,
             children: AppConstants.supportedPlatforms.map((platform) {
               return Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color:
-                      AppColors.platformColor(platform).withValues(alpha: 0.1),
+                  color: AppColors.platformColor(
+                    platform,
+                  ).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: AppColors.platformColor(platform)
-                        .withValues(alpha: 0.3),
+                    color: AppColors.platformColor(
+                      platform,
+                    ).withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
@@ -169,9 +236,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               );
             }).toList(),
-          )
-              .animate()
-              .fadeIn(duration: 400.ms, delay: 100.ms),
+          ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
 
           const SizedBox(height: 32),
 
@@ -182,9 +247,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
           // Video Info Card
           videoInfo.when(
-            data: (info) {
-              if (info == null) return const SizedBox.shrink();
-              return _buildVideoCard(info, l10n);
+            data: (preview) {
+              if (preview == null) return const SizedBox.shrink();
+              return _buildVideoCard(preview, l10n);
             },
             loading: () => _buildLoadingCard(l10n),
             error: (e, _) => _buildErrorCard(e.toString()),
@@ -228,9 +293,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: PlatformIcon(
-                      platform: _detectedPlatform!, size: 22)
-                      .animate()
-                      .scale(duration: 200.ms),
+                    platform: _detectedPlatform!,
+                    size: 22,
+                  ).animate().scale(duration: 200.ms),
                 ),
               Expanded(
                 child: TextField(
@@ -243,12 +308,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   decoration: InputDecoration(
                     hintText: l10n.get('pasteUrl'),
-                    prefixIcon: const Icon(Icons.link_rounded,
-                        color: AppColors.textMuted),
+                    prefixIcon: const Icon(
+                      Icons.link_rounded,
+                      color: AppColors.textMuted,
+                    ),
                     suffixIcon: _urlController.text.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear_rounded,
-                                color: AppColors.textMuted, size: 18),
+                            icon: const Icon(
+                              Icons.clear_rounded,
+                              color: AppColors.textMuted,
+                              size: 18,
+                            ),
                             onPressed: () {
                               _urlController.clear();
                               _onUrlChanged('');
@@ -292,14 +362,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _fetchInfo();
                 }
               },
-              icon: const Icon(Icons.content_paste_rounded,
-                  size: 14, color: AppColors.textMuted),
+              icon: const Icon(
+                Icons.content_paste_rounded,
+                size: 14,
+                color: AppColors.textMuted,
+              ),
               label: Text(
-                'Paste from clipboard',
-                style: TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 12,
-                ),
+                l10n.get('pasteClipboard'),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
             ),
           ),
@@ -308,7 +378,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ).animate().fadeIn(duration: 400.ms, delay: 200.ms).slideY(begin: 0.05);
   }
 
-  Widget _buildVideoCard(VideoInfo info, AppLocalizations l10n) {
+  Widget _buildVideoCard(MediaPreview preview, AppLocalizations l10n) {
+    final info = preview.info;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -337,15 +408,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         width: 220,
                         height: 130,
                         color: AppColors.bgElevated,
-                        child: const Icon(Icons.image_rounded,
-                            color: AppColors.textMuted),
+                        child: const Icon(
+                          Icons.image_rounded,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                       errorWidget: (context2, url, error) => Container(
                         width: 220,
                         height: 130,
                         color: AppColors.bgElevated,
-                        child: const Icon(Icons.broken_image_rounded,
-                            color: AppColors.textMuted),
+                        child: const Icon(
+                          Icons.broken_image_rounded,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                     ),
                   ),
@@ -370,21 +445,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       Row(
                         children: [
                           if (info.platform != null)
-                            PlatformIcon(
-                                platform: info.platform!, size: 16),
-                          if (info.platform != null)
-                            const SizedBox(width: 8),
+                            PlatformIcon(platform: info.platform!, size: 16),
+                          if (info.platform != null) const SizedBox(width: 8),
                           if (info.duration != null)
                             Row(
                               children: [
-                                const Icon(Icons.access_time_rounded,
-                                    size: 14, color: AppColors.textMuted),
+                                const Icon(
+                                  Icons.access_time_rounded,
+                                  size: 14,
+                                  color: AppColors.textMuted,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   FormatUtils.formatDuration(info.duration!),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall,
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ],
                             ),
@@ -392,14 +466,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             const SizedBox(width: 16),
                             Row(
                               children: [
-                                const Icon(Icons.high_quality_rounded,
-                                    size: 14, color: AppColors.textMuted),
+                                const Icon(
+                                  Icons.high_quality_rounded,
+                                  size: 14,
+                                  color: AppColors.textMuted,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   'Up to ${info.formats.first.quality}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall,
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ],
                             ),
@@ -411,35 +486,72 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       Wrap(
                         spacing: 10,
                         runSpacing: 8,
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: () => _startDownload(
-                                info, DownloadType.videoWithAudio),
-                            icon: const Icon(
-                                Icons.smart_display_rounded,
-                                size: 18),
-                            label: Text(
-                                l10n.get('downloadVideoWithAudio')),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                            ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                _startDownload(info, DownloadType.video),
-                            icon: const Icon(Icons.videocam_rounded,
-                                size: 18),
-                            label: Text(l10n.get('downloadVideo')),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                _startDownload(info, DownloadType.audio),
-                            icon: const Icon(
-                                Icons.music_note_rounded,
-                                size: 18),
-                            label: Text(l10n.get('downloadAudio')),
-                          ),
-                        ],
+                        children: preview.isPlaylist
+                            ? [
+                                ElevatedButton.icon(
+                                  onPressed: () => _startPlaylistDownload(
+                                    preview.entries,
+                                    DownloadType.videoWithAudio,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.playlist_play_rounded,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    '${l10n.get('downloadAll')} (${preview.entries.length})',
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                  ),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () => _startPlaylistDownload(
+                                    preview.entries,
+                                    DownloadType.audio,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.library_music_rounded,
+                                    size: 18,
+                                  ),
+                                  label: Text(l10n.get('downloadAudio')),
+                                ),
+                              ]
+                            : [
+                                ElevatedButton.icon(
+                                  onPressed: () => _startDownload(
+                                    info,
+                                    DownloadType.videoWithAudio,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.smart_display_rounded,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    l10n.get('downloadVideoWithAudio'),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                  ),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () =>
+                                      _startDownload(info, DownloadType.video),
+                                  icon: const Icon(
+                                    Icons.videocam_rounded,
+                                    size: 18,
+                                  ),
+                                  label: Text(l10n.get('downloadVideo')),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () =>
+                                      _startDownload(info, DownloadType.audio),
+                                  icon: const Icon(
+                                    Icons.music_note_rounded,
+                                    size: 18,
+                                  ),
+                                  label: Text(l10n.get('downloadAudio')),
+                                ),
+                              ],
                       ),
                     ],
                   ),
@@ -449,10 +561,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
       ),
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideY(begin: 0.1, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 
   Widget _buildLoadingCard(AppLocalizations l10n) {
@@ -468,8 +577,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             const CircularProgressIndicator(color: AppColors.primary),
             const SizedBox(height: 16),
-            Text(l10n.get('fetchingInfo'),
-                style: Theme.of(context).textTheme.bodyMedium),
+            Text(
+              l10n.get('fetchingInfo'),
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ],
         ),
       ),
@@ -500,7 +611,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildActiveDownloads(
-      List<DownloadTask> downloads, AppLocalizations l10n) {
+    List<DownloadTask> downloads,
+    AppLocalizations l10n,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -512,20 +625,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             const SizedBox(width: 8),
             Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: AppColors.success,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.success.withValues(alpha: 0.5),
-                    blurRadius: 6,
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: AppColors.success,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.success.withValues(alpha: 0.5),
+                        blurRadius: 6,
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ).animate(onPlay: (c) => c.repeat(reverse: true)).fade(
-                begin: 0.5, end: 1.0, duration: 1000.ms),
+                )
+                .animate(onPlay: (c) => c.repeat(reverse: true))
+                .fade(begin: 0.5, end: 1.0, duration: 1000.ms),
           ],
         ),
         const SizedBox(height: 12),
@@ -555,7 +669,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Text(
                   task.title,
                   style: const TextStyle(
-                      color: AppColors.textPrimary, fontSize: 13),
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -585,10 +701,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(width: 8),
             Text(
               task.speed!,
-              style: const TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 11,
-              ),
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
             ),
           ],
         ],

@@ -5,11 +5,7 @@ class PlatformIcon extends StatelessWidget {
   final String platform;
   final double size;
 
-  const PlatformIcon({
-    super.key,
-    required this.platform,
-    this.size = 20,
-  });
+  const PlatformIcon({super.key, required this.platform, this.size = 20});
 
   @override
   Widget build(BuildContext context) {

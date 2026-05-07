@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/l10n/app_localizations.dart';
 
@@ -52,8 +53,10 @@ class _SidebarNavState extends State<SidebarNav> {
               final isSelected = widget.selectedIndex == index;
 
               return Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -62,7 +65,9 @@ class _SidebarNavState extends State<SidebarNav> {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         color: isSelected
@@ -70,8 +75,8 @@ class _SidebarNavState extends State<SidebarNav> {
                             : Colors.transparent,
                         border: isSelected
                             ? Border.all(
-                                color:
-                                    AppColors.primary.withValues(alpha: 0.3))
+                                color: AppColors.primary.withValues(alpha: 0.3),
+                              )
                             : null,
                       ),
                       child: Row(
@@ -114,15 +119,10 @@ class _SidebarNavState extends State<SidebarNav> {
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
-                  'v1.0.0',
-                  style: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 11,
-                  ),
+                  'v${AppConstants.appVersion}',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 11),
                 ),
-              )
-                  .animate()
-                  .fadeIn(duration: 200.ms),
+              ).animate().fadeIn(duration: 200.ms),
           ],
         ),
       ),

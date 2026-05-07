@@ -11,9 +11,7 @@ class WindowTitleBar extends StatelessWidget {
       height: 40,
       decoration: BoxDecoration(
         color: AppColors.sidebarBg,
-        border: Border(
-          bottom: BorderSide(color: AppColors.border, width: 0.5),
-        ),
+        border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
       ),
       child: Row(
         children: [

@@ -31,25 +31,34 @@ class FormatUtils {
     return '${(bytesPerSecond / (1024 * 1024)).toStringAsFixed(1)} MB/s';
   }
 
-  static String timeAgo(DateTime dateTime) {
+  static String timeAgo(DateTime dateTime, {String localeCode = 'en'}) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
+    final isSpanish = localeCode == 'es';
 
     if (difference.inDays > 365) {
-      return '${(difference.inDays / 365).floor()}y ago';
+      final years = (difference.inDays / 365).floor();
+      return isSpanish ? 'hace ${years}a' : '${years}y ago';
     }
     if (difference.inDays > 30) {
-      return '${(difference.inDays / 30).floor()}mo ago';
+      final months = (difference.inDays / 30).floor();
+      return isSpanish ? 'hace ${months}m' : '${months}mo ago';
     }
     if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
+      return isSpanish
+          ? 'hace ${difference.inDays}d'
+          : '${difference.inDays}d ago';
     }
     if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
+      return isSpanish
+          ? 'hace ${difference.inHours}h'
+          : '${difference.inHours}h ago';
     }
     if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
+      return isSpanish
+          ? 'hace ${difference.inMinutes}min'
+          : '${difference.inMinutes}m ago';
     }
-    return 'Just now';
+    return isSpanish ? 'Ahora' : 'Just now';
   }
 }
